@@ -1,0 +1,192 @@
+# ============================================================
+# docker-compose.yml — 本项目的两个应用服务
+#
+# 前置条件：
+#   Milvus / MongoDB / MinIO / Neo4j 已通过外部文件独立部署
+#   模型文件已存在于宿主机，通过卷挂载进容器
+#
+# 使用方式：
+#   CPU（默认）: docker compose up -d
+#   GPU       : 取消下方 deploy.resources 注释 + 设置环境变量
+# ============================================================
+
+services:
+
+  # ======================== 导入服务 ========================
+  import:
+    build:
+      context: .
+      args:
+        USE_GPU: "${USE_GPU:-false}"
+    container_name: rag-import
+    ports:
+      - "${IMPORT_PORT:-8000}:8000"
+    volumes:
+      # 模型文件挂载（宿主机路径通过 .env 配置）
+      - "${BGE_M3_PATH:-./models/bge-m3}:/models/bge-m3:ro"
+      - "${BGE_RERANKER_LARGE:-./models/bge-reranker-large}:/models/bge-reranker-large:ro"
+      # 运行时输出持久化
+      - ./output:/app/output
+      - ./logs:/app/logs
+    environment:
+      # ---- 运行设备 ----
+      - BGE_DEVICE=${BGE_DEVICE:-cpu}
+      - BGE_RERANKER_DEVICE=${BGE_RERANKER_DEVICE:-cpu}
+      - BGE_FP16=${BGE_FP16:-0}
+      - BGE_RERANKER_FP16=${BGE_RERANKER_FP16:-0}
+      # ---- 模型路径（容器内路径） ----
+      - BGE_M3_PATH=/models/bge-m3
+      - BGE_RERANKER_LARGE=/models/bge-reranker-large
+      # ---- LLM ----
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - LLM_DEFAULT_MODEL=${LLM_DEFAULT_MODEL:-qwen-flash}
+      - VL_MODEL=${VL_MODEL:-qwen3-vl-flash-2025-10-15}
+      - LLM_DEFAULT_TEMPERATURE=${LLM_DEFAULT_TEMPERATURE:-0.1}
+      # ---- Milvus ----
+      - MILVUS_URL=${MILVUS_URL}
+      - MILVUS_USER=${MILVUS_USER}
+      - MILVUS_PASSWORD=${MILVUS_PASSWORD}
+      - CHUNKS_COLLECTION=${CHUNKS_COLLECTION:-kb_chunks}
+      - ITEM_NAME_COLLECTION=${ITEM_NAME_COLLECTION:-kb_item_names}
+      - EMBEDDING_DIM=${EMBEDDING_DIM:-1024}
+      # ---- MongoDB ----
+      - MONGO_URL=${MONGO_URL}
+      - MONGO_DB_NAME=${MONGO_DB_NAME:-kb}
+      # ---- MinIO ----
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME:-knowledge-base-files}
+      - MINIO_IMG_DIR=${MINIO_IMG_DIR:-/upload-images}
+      - MINIO_SECURE=${MINIO_SECURE:-False}
+      # ---- Neo4j ----
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_DATABASE=${NEO4J_DATABASE:-neo4j}
+      # ---- MinerU ----
+      - MINERU_API_TOKEN=${MINERU_API_TOKEN}
+      - MINERU_BASE_URL=${MINERU_BASE_URL}
+      - MD_ROOT_DIR=${MD_ROOT_DIR:-./temp-files/}
+      # ---- MCP ----
+      - MCP_DASHSCOPE_BASE_URL_STREAMABLE=${MCP_DASHSCOPE_BASE_URL_STREAMABLE}
+      # ---- RAGAs ----
+      - EVALUATION_LLM_MODEL=${EVALUATION_LLM_MODEL:-qwen3-max}
+      - EVALUATION_LLM_TEMPERATURE=${EVALUATION_LLM_TEMPERATURE:-0.0}
+      - RETRIEVAL_TOP_K=${RETRIEVAL_TOP_K:-5}
+      # ---- 日志 ----
+      - LOG_CONSOLE_ENABLE=${LOG_CONSOLE_ENABLE:-True}
+      - LOG_CONSOLE_LEVEL=${LOG_CONSOLE_LEVEL:-INFO}
+      - LOG_FILE_ENABLE=${LOG_FILE_ENABLE:-True}
+      - LOG_FILE_LEVEL=${LOG_FILE_LEVEL:-INFO}
+      - LOG_FILE_RETENTION=${LOG_FILE_RETENTION:-7 days}
+      # ---- MinerU 离线 ----
+      - MINERU_MODEL_SOURCE=${MINERU_MODEL_SOURCE:-modelscope}
+      - MODELSCOPE_OFFLINE=${MODELSCOPE_OFFLINE:-1}
+      - MODELSCOPE_CACHE=${MODELSCOPE_CACHE:-/tmp/modelscope_cache}
+      - HF_HOME=${HF_HOME:-/tmp/huggingface_cache}
+    command: uv run uvicorn app.import_process.api.import_server:app --host 0.0.0.0 --port 8000
+    restart: unless-stopped
+    # ---- GPU 支持（需要时取消注释） ----
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  # ======================== 查询服务 ========================
+  query:
+    build:
+      context: .
+      args:
+        USE_GPU: "${USE_GPU:-false}"
+    container_name: rag-query
+    ports:
+      - "${QUERY_PORT:-8001}:8001"
+    volumes:
+      # 模型文件挂载
+      - "${BGE_M3_PATH:-./models/bge-m3}:/models/bge-m3:ro"
+      - "${BGE_RERANKER_LARGE:-./models/bge-reranker-large}:/models/bge-reranker-large:ro"
+      # 运行时输出持久化
+      - ./output:/app/output
+      - ./logs:/app/logs
+    environment:
+      # ---- 运行设备 ----
+      - BGE_DEVICE=${BGE_DEVICE:-cpu}
+      - BGE_RERANKER_DEVICE=${BGE_RERANKER_DEVICE:-cpu}
+      - BGE_FP16=${BGE_FP16:-0}
+      - BGE_RERANKER_FP16=${BGE_RERANKER_FP16:-0}
+      # ---- 模型路径 ----
+      - BGE_M3_PATH=/models/bge-m3
+      - BGE_RERANKER_LARGE=/models/bge-reranker-large
+      # ---- LLM ----
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - LLM_DEFAULT_MODEL=${LLM_DEFAULT_MODEL:-qwen-flash}
+      - VL_MODEL=${VL_MODEL:-qwen3-vl-flash-2025-10-15}
+      - LLM_DEFAULT_TEMPERATURE=${LLM_DEFAULT_TEMPERATURE:-0.1}
+      # ---- Milvus ----
+      - MILVUS_URL=${MILVUS_URL}
+      - MILVUS_USER=${MILVUS_USER}
+      - MILVUS_PASSWORD=${MILVUS_PASSWORD}
+      - CHUNKS_COLLECTION=${CHUNKS_COLLECTION:-kb_chunks}
+      - ITEM_NAME_COLLECTION=${ITEM_NAME_COLLECTION:-kb_item_names}
+      - EMBEDDING_DIM=${EMBEDDING_DIM:-1024}
+      # ---- MongoDB ----
+      - MONGO_URL=${MONGO_URL}
+      - MONGO_DB_NAME=${MONGO_DB_NAME:-kb}
+      # ---- MinIO ----
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_BUCKET_NAME=${MINIO_BUCKET_NAME:-knowledge-base-files}
+      - MINIO_IMG_DIR=${MINIO_IMG_DIR:-/upload-images}
+      - MINIO_SECURE=${MINIO_SECURE:-False}
+      # ---- Neo4j ----
+      - NEO4J_URI=${NEO4J_URI}
+      - NEO4J_USERNAME=${NEO4J_USERNAME}
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD}
+      - NEO4J_DATABASE=${NEO4J_DATABASE:-neo4j}
+      # ---- MinerU ----
+      - MINERU_API_TOKEN=${MINERU_API_TOKEN}
+      - MINERU_BASE_URL=${MINERU_BASE_URL}
+      - MD_ROOT_DIR=${MD_ROOT_DIR:-./temp-files/}
+      # ---- MCP ----
+      - MCP_DASHSCOPE_BASE_URL_STREAMABLE=${MCP_DASHSCOPE_BASE_URL_STREAMABLE}
+      # ---- RAGAs ----
+      - EVALUATION_LLM_MODEL=${EVALUATION_LLM_MODEL:-qwen3-max}
+      - EVALUATION_LLM_TEMPERATURE=${EVALUATION_LLM_TEMPERATURE:-0.0}
+      - RETRIEVAL_TOP_K=${RETRIEVAL_TOP_K:-5}
+      # ---- 日志 ----
+      - LOG_CONSOLE_ENABLE=${LOG_CONSOLE_ENABLE:-True}
+      - LOG_CONSOLE_LEVEL=${LOG_CONSOLE_LEVEL:-INFO}
+      - LOG_FILE_ENABLE=${LOG_FILE_ENABLE:-True}
+      - LOG_FILE_LEVEL=${LOG_FILE_LEVEL:-INFO}
+      - LOG_FILE_RETENTION=${LOG_FILE_RETENTION:-7 days}
+      # ---- MinerU 离线 ----
+      - MINERU_MODEL_SOURCE=${MINERU_MODEL_SOURCE:-modelscope}
+      - MODELSCOPE_OFFLINE=${MODELSCOPE_OFFLINE:-1}
+      - MODELSCOPE_CACHE=${MODELSCOPE_CACHE:-/tmp/modelscope_cache}
+      - HF_HOME=${HF_HOME:-/tmp/huggingface_cache}
+    command: uv run uvicorn app.query_process.api.query_server:app --host 0.0.0.0 --port 8001
+    restart: unless-stopped
+    # ---- GPU 支持（需要时取消注释） ----
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+# ============================================================
+# 网络（默认 bridge，自动 DNS 解析服务名）
+# 如需与外部部署的基础设施在同一网络，可改为:
+#   networks:
+#     default:
+#       external: true
+#       name: your-infra-network
+# ============================================================
