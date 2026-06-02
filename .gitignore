@@ -1,0 +1,100 @@
+# ===========================
+# Python
+# ===========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+dist/
+build/
+*.egg-info/
+*.egg
+*.whl
+
+# ===========================
+# Virtual environment
+# ===========================
+.venv/
+venv/
+ENV/
+env/
+
+# ===========================
+# Environment & secrets
+# ===========================
+.env
+.env.*
+!.env.example
+
+# ===========================
+# IDE & editor
+# ===========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ===========================
+# OS
+# ===========================
+.DS_Store
+Thumbs.db
+
+# ===========================
+# Package manager
+# ===========================
+uv.lock
+.python-version
+
+# ===========================
+# Runtime output
+# ===========================
+logs/
+output/
+temp-files/
+
+# ===========================
+# Project data (not in VCS)
+# ===========================
+doc/
+
+# ===========================
+# Jupyter
+# ===========================
+.ipynb_checkpoints/
+*.ipynb
+
+# ===========================
+# Vector DB (local)
+# ===========================
+milvus_data/
+
+# ===========================
+# ML models & checkpoints
+# ===========================
+models/
+checkpoints/
+*.pth
+*.pt
+*.ckpt
+*.bin
+*.safetensors
+*.gguf
+
+# ===========================
+# Test & coverage
+# ===========================
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+.pytest_cache/
+.tox/
+
+# ===========================
+# Temp & cache
+# ===========================
+*.tmp
+tmp/
+.cache/
