@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Virtual env
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+.dockerignore
+
+# Docker
+Dockerfile
+docker-compose.yml
+
+# Env (use docker-compose env_file or environment instead)
+.env
+
+# Runtime output
+logs/
+output/
+temp-files/
+
+# Project data
+doc/
+
+# Models (mounted via volume)
+models/
+checkpoints/
+
+# Package manager
+uv.lock
+.python-version
+
+# Dev docs
+*.md
+
+# Test
+app/test/
+.pytest_cache/
+
+# Temp
+*.tmp
+tmp/
+.cache/
